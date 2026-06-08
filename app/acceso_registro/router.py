@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.acceso_registro import schemas, service
 from app.acceso_registro.schemas import UserResponse, VehiculoResponse, TallerResponse, UserListResponse
-from app.core.dependencies import get_current_user, require_role
+from app.core.dependencies import get_current_user, require_role, get_current_admin
 from app.acceso_registro.models import User
 
 router = APIRouter()
@@ -102,7 +102,7 @@ async def eliminar_vehiculo(
 @router.post("/talleres", response_model=TallerResponse, status_code=status.HTTP_201_CREATED)
 async def registrar_taller(
     data: schemas.TallerCreate,
-    current_user: User = Depends(require_role("cliente")),
+    current_user: User = Depends(require_role("cliente", "taller")),
     db: AsyncSession = Depends(get_db),
 ):
     taller = await service.crear_taller(data, current_user, db)
@@ -117,7 +117,7 @@ async def listar_usuarios(
     search: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     usuarios, total = await service.listar_usuarios(db, role, activo, search, page, size)
@@ -131,7 +131,7 @@ async def listar_usuarios(
 @router.get("/usuarios/{user_id}", response_model=UserResponse)
 async def obtener_usuario(
     user_id: int,
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     user = await service.obtener_usuario(user_id, db)
@@ -143,7 +143,7 @@ async def actualizar_usuario(
     user_id: int,
     data: schemas.UserUpdate,
     request: Request,
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     before = await service.obtener_usuario(user_id, db)
@@ -162,7 +162,7 @@ async def actualizar_usuario(
 async def activar_usuario(
     user_id: int,
     request: Request,
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     user = await service.toggle_usuario_activo(user_id, True, current_user.id, db)
@@ -177,7 +177,7 @@ async def activar_usuario(
 async def desactivar_usuario(
     user_id: int,
     request: Request,
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     user = await service.toggle_usuario_activo(user_id, False, current_user.id, db)
@@ -192,7 +192,7 @@ async def desactivar_usuario(
 @router.get("/talleres", response_model=list[TallerResponse])
 async def listar_talleres(
     estado: Optional[str] = None,
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     talleres = await service.listar_talleres(estado, db)
@@ -203,7 +203,7 @@ async def listar_talleres(
 async def aprobar_taller(
     taller_id: int,
     request: Request,
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     taller = await service.cambiar_estado_taller(taller_id, "aprobado", db)
@@ -218,7 +218,7 @@ async def aprobar_taller(
 async def rechazar_taller(
     taller_id: int,
     request: Request,
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     taller = await service.cambiar_estado_taller(taller_id, "rechazado", db)

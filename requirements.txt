@@ -11,7 +11,7 @@ bcrypt==4.0.1
 python-multipart
 python-dotenv
 alembic
-aiosmtplib>=11.0.0
+aiosmtplib>=5.1.1
 # §4.5 - §4.6 Módulos IA
 scikit-learn>=1.3.0
 numpy>=1.24.0

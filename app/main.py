@@ -25,6 +25,7 @@ from app.cotizacion_pagos.router import router as pagos_router
 from app.comunicacion.router     import router as comunicacion_router
 from app.reportes.router         import router as reportes_router
 from app.ia.router               import router as ia_router
+from app.seguimiento.router      import router as seguimiento_router
 
 
 @asynccontextmanager
@@ -85,8 +86,12 @@ app.include_router(pagos_router,        prefix="/api/pagos",        tags=["Cotiz
 app.include_router(comunicacion_router, prefix="/api/comunicacion", tags=["Comunicación"])
 app.include_router(reportes_router,     prefix="/api/reportes",     tags=["Reportes"])
 app.include_router(ia_router,           prefix="/api/ia",           tags=["Inteligencia Artificial"])
+app.include_router(seguimiento_router,  prefix="/ws",               tags=["Seguimiento en Tiempo Real"])
 
 
 @app.get("/")
 async def root():
     return {"message": "Taller Backend v2.0 — IA activa"}
+
+# reload trigger 1
+

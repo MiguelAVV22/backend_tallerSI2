@@ -162,7 +162,11 @@ async def crear_taller(data: TallerCreate, user: User, db: AsyncSession) -> Tall
         longitud=data.longitud,
     )
     db.add(taller)
-    user.role = "taller"
+    # Cargar el usuario real de la BD para actualizar su rol
+    db_user_res = await db.execute(select(User).where(User.id == user.id))
+    db_user = db_user_res.scalar_one_or_none()
+    if db_user:
+        db_user.role = "taller"
     await db.commit()
     await db.refresh(taller)
     return taller

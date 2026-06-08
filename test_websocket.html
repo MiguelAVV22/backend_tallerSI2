@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Seguimiento - Cliente de Prueba</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --success: #10b981;
+            --danger: #ef4444;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #334155;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            padding: 24px;
+            background: linear-gradient(135deg, #1e40af, #3b82f6);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 9999px;
+            font-size: 13px;
+            font-weight: 600;
+            background-color: rgba(255, 255, 255, 0.15);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--danger);
+        }
+
+        .status-dot.connected {
+            background-color: var(--success);
+            box-shadow: 0 0 8px var(--success);
+        }
+
+        .content {
+            padding: 24px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-top: 0;
+            margin-bottom: 16px;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px 12px;
+            background-color: #0b0f19;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 14px;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .btn-success {
+            background-color: var(--success);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background-color: #059669;
+        }
+
+        .btn-danger {
+            background-color: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background-color: #dc2626;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .logs-panel {
+            display: flex;
+            flex-direction: column;
+            height: 380px;
+        }
+
+        .logs-container {
+            flex-grow: 1;
+            background-color: #0b0f19;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .log-item {
+            padding: 8px;
+            border-radius: 4px;
+            background-color: rgba(255, 255, 255, 0.03);
+            border-left: 3px solid var(--text-muted);
+            white-space: pre-wrap;
+        }
+
+        .log-item.sent {
+            border-left-color: var(--primary);
+            background-color: rgba(59, 130, 246, 0.05);
+        }
+
+        .log-item.recv {
+            border-left-color: var(--success);
+            background-color: rgba(16, 185, 129, 0.05);
+        }
+
+        .log-item.error {
+            border-left-color: var(--danger);
+            background-color: rgba(239, 68, 68, 0.05);
+        }
+
+        .log-time {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>CU36: Seguimiento en Tiempo Real</h1>
+            <div class="status-badge">
+                <div id="statusDot" class="status-dot"></div>
+                <span id="statusText">Desconectado</span>
+            </div>
+        </div>
+
+        <div class="content">
+            <!-- Formulario de Control -->
+            <div>
+                <div class="panel-title">Configuración y Envío</div>
+                
+                <div class="form-group">
+                    <label for="incidenteId">ID Incidente</label>
+                    <input type="number" id="incidenteId" class="form-control" value="1">
+                </div>
+
+                <div class="form-group">
+                    <button id="btnConnect" class="btn btn-primary" onclick="toggleConnection()">Conectar WebSocket</button>
+                </div>
+
+                <div id="publishPanel" style="display: none;">
+                    <div class="form-group">
+                        <label for="tecnicoId">ID Técnico</label>
+                        <input type="number" id="tecnicoId" class="form-control" value="5">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="latitud">Latitud</label>
+                        <input type="number" step="0.000001" id="latitud" class="form-control" value="-17.7833">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="longitud">Longitud</label>
+                        <input type="number" step="0.000001" id="longitud" class="form-control" value="-63.1821">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="estado">Estado</label>
+                        <select id="estado" class="form-control">
+                            <option value="EN_CAMINO">EN_CAMINO</option>
+                            <option value="LLEGADA">LLEGADA</option>
+                            <option value="REPARANDO">REPARANDO</option>
+                            <option value="FINALIZADO">FINALIZADO</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="eta">ETA (Minutos)</label>
+                        <input type="number" id="eta" class="form-control" value="12">
+                    </div>
+
+                    <button id="btnSend" class="btn btn-success" onclick="sendMessage()">Enviar Ubicación y Estado</button>
+                </div>
+            </div>
+
+            <!-- Panel de Logs -->
+            <div class="logs-panel">
+                <div class="panel-title">Mensajes Recibidos</div>
+                <div id="logsContainer" class="logs-container">
+                    <div style="color: var(--text-muted);">Conéctate al WebSocket para comenzar a recibir eventos...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+
+        function toggleConnection() {
+            const btnConnect = document.getElementById('btnConnect');
+            const incidenteId = document.getElementById('incidenteId').value;
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.close();
+                return;
+            }
+
+            // Cambiar estado a conectando
+            btnConnect.disabled = true;
+            btnConnect.textContent = 'Conectando...';
+
+            const wsUrl = `ws://${window.location.hostname || '127.0.0.1'}:8000/ws/seguimiento/${incidenteId}`;
+            addLog(`Intentando conectar a ${wsUrl}...`);
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function() {
+                btnConnect.disabled = false;
+                btnConnect.textContent = 'Desconectar';
+                btnConnect.className = 'btn btn-danger';
+                
+                document.getElementById('statusDot').className = 'status-dot connected';
+                document.getElementById('statusText').textContent = 'Conectado';
+                document.getElementById('publishPanel').style.display = 'block';
+                document.getElementById('incidenteId').disabled = true;
+                
+                addLog('Conectado exitosamente.', 'recv');
+            };
+
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                addLog(`Recibido: ${JSON.stringify(data, null, 2)}`, data.error ? 'error' : 'recv');
+            };
+
+            ws.onclose = function() {
+                btnConnect.disabled = false;
+                btnConnect.textContent = 'Conectar WebSocket';
+                btnConnect.className = 'btn btn-primary';
+                
+                document.getElementById('statusDot').className = 'status-dot';
+                document.getElementById('statusText').textContent = 'Desconectado';
+                document.getElementById('publishPanel').style.display = 'none';
+                document.getElementById('incidenteId').disabled = false;
+                
+                addLog('Conexión cerrada.', 'error');
+                ws = null;
+            };
+
+            ws.onerror = function(error) {
+                addLog('Error de conexión WebSocket.', 'error');
+            };
+        }
+
+        function sendMessage() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('WebSocket no está conectado');
+                return;
+            }
+
+            const message = {
+                tipo: 'ubicacion_tecnico',
+                incidente_id: parseInt(document.getElementById('incidenteId').value),
+                tecnico_id: parseInt(document.getElementById('tecnicoId').value),
+                latitud: parseFloat(document.getElementById('latitud').value),
+                longitud: parseFloat(document.getElementById('longitud').value),
+                estado: document.getElementById('estado').value,
+                eta_minutos: parseInt(document.getElementById('eta').value)
+            };
+
+            ws.send(JSON.stringify(message));
+            addLog(`Enviado: ${JSON.stringify(message, null, 2)}`, 'sent');
+        }
+
+        function addLog(text, type = '') {
+            const logsContainer = document.getElementById('logsContainer');
+            
+            // Limpiar mensaje inicial si existe
+            if (logsContainer.children.length === 1 && logsContainer.children[0].style.color) {
+                logsContainer.innerHTML = '';
+            }
+
+            const item = document.createElement('div');
+            item.className = `log-item ${type}`;
+            
+            const time = document.createElement('div');
+            time.className = 'log-time';
+            time.textContent = new Date().toLocaleTimeString();
+            
+            item.appendChild(time);
+            
+            const content = document.createElement('span');
+            content.textContent = text;
+            item.appendChild(content);
+
+            logsContainer.appendChild(item);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+    </script>
+</body>
+</html>

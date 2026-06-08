@@ -41,6 +41,17 @@ async def get_current_user(
     return user
 
 
+async def get_current_admin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acceso denegado. Se requiere rol: admin",
+        )
+    return current_user
+
+
 def require_role(*roles: str) -> Callable:
     """Lee id y role directamente del JWT — sin query a la BD.
     Devuelve un objeto con .id y .role, suficiente para todos los endpoints protegidos."""

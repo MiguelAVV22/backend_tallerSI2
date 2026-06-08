@@ -17,7 +17,7 @@ class Incidente(Base):
     prioridad  = Column(String(20),   default="media")      # alta|media|baja
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     # Columna añadida vía ALTER TABLE en lifespan (§4.5 - clasificación IA automática)
-    tipo_incidente = deferred(Column(String(50), nullable=True))
+    tipo_incidente = Column(String(50), nullable=True)
 
 
 class Evidencia(Base):

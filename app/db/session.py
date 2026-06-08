@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 
 engine = create_async_engine(
-    settings.async_database_url,
+    settings.DATABASE_URL,
     echo=False,
     pool_pre_ping=True,   # detecta conexiones muertas antes de usarlas (crítico con reload=True)
     pool_recycle=1800,    # recicla conexiones cada 30 min (5 min era demasiado agresivo en dev)
