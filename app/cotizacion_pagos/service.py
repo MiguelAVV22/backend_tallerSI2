@@ -141,7 +141,9 @@ async def realizar_pago(usuario_id: int, data: PagoCreate, db: AsyncSession) -> 
 
     pago = Pago(
         cotizacion_id=data.cotizacion_id,
+        usuario_id=usuario_id,
         monto=cotizacion.monto_estimado,
+        comision=round(cotizacion.monto_estimado * 0.10, 2),
         metodo=data.metodo,
         estado="completado",
     )
@@ -186,3 +188,42 @@ async def listar_comisiones(taller_id: int, db: AsyncSession) -> ComisionesRespo
         ingresos_netos=round(bruto * (1 - _TASA_COMISION), 2),
         pagos=items,
     )
+
+
+async def obtener_resumen_pago(incidente_id: int, db: AsyncSession) -> dict:
+    result = await db.execute(
+        select(Cotizacion).where(
+            Cotizacion.incidente_id == incidente_id,
+            Cotizacion.estado.in_(["aceptada", "pagada"])
+        )
+    )
+    cotizacion = result.scalar_one_or_none()
+    if not cotizacion:
+        raise HTTPException(status_code=404, detail="No hay cotización aceptada o pagada para este incidente")
+
+    from app.emergencias.models import Incidente
+    res_inc = await db.execute(select(Incidente).where(Incidente.id == incidente_id))
+    incidente = res_inc.scalar_one_or_none()
+    descripcion_incidente = incidente.descripcion if incidente else "—"
+
+    taller_nombre = "Taller"
+    if cotizacion.taller_id:
+        result_taller = await db.execute(select(Taller).where(Taller.id == cotizacion.taller_id))
+        t = result_taller.scalar_one_or_none()
+        if t:
+            taller_nombre = t.nombre
+
+    # Check if already paid
+    res_pago = await db.execute(select(Pago).where(Pago.cotizacion_id == cotizacion.id))
+    pago = res_pago.scalar_one_or_none()
+    ya_pagada = pago is not None
+
+    return {
+        "cotizacion": {
+            "id": cotizacion.id,
+            "monto_estimado": round(cotizacion.monto_estimado, 2),
+        },
+        "descripcion_incidente": descripcion_incidente,
+        "taller_nombre": taller_nombre,
+        "ya_pagada": ya_pagada
+    }

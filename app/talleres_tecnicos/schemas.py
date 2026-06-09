@@ -53,6 +53,8 @@ class AsignacionResponse(BaseModel):
     observacion: Optional[str]
     created_at: datetime
     es_sos: bool = False  # Poblado solo en /asignaciones/activas
+    incidente_latitud: Optional[float] = None
+    incidente_longitud: Optional[float] = None
 
     model_config = {"from_attributes": True}
 

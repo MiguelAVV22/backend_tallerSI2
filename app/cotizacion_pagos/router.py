@@ -80,6 +80,7 @@ async def actualizar_estado_cotizacion(
 
 # ── CU20 · Realizar pago (cliente) ────────────────────────
 @router.post("/pagos", response_model=schemas.PagoResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/pago", response_model=schemas.PagoResponse, status_code=status.HTTP_201_CREATED)
 async def realizar_pago(
     data: schemas.PagoCreate,
     current_user: User = Depends(require_role("cliente")),
@@ -87,6 +88,15 @@ async def realizar_pago(
 ):
     pago = await service.realizar_pago(current_user.id, data, db)
     return schemas.PagoResponse.model_validate(pago)
+
+
+@router.get("/incidente/{incidente_id}/resumen-pago")
+async def resumen_pago(
+    incidente_id: int,
+    current_user: User = Depends(require_role("cliente")),
+    db: AsyncSession = Depends(get_db),
+):
+    return await service.obtener_resumen_pago(incidente_id, db)
 
 
 # ── CU26 · Ver comisiones del taller ──────────────────────

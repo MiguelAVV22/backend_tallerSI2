@@ -20,7 +20,9 @@ class Pago(Base):
 
     id            = Column(Integer, primary_key=True, index=True)
     cotizacion_id = Column(Integer, ForeignKey("cotizaciones.id"), nullable=False, unique=True)
+    usuario_id    = Column(Integer, ForeignKey("users.id"), nullable=False)
     monto         = Column(Float, nullable=False)
+    comision      = Column(Float, nullable=False)
     metodo        = Column(String(30), nullable=False)   # efectivo | transferencia | tarjeta
     estado        = Column(String(20), default="completado")
     created_at    = Column(DateTime(timezone=True), server_default=func.now())

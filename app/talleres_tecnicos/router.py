@@ -87,17 +87,21 @@ async def listar_asignaciones_activas(
     if not asignaciones:
         return []
 
-    # Batch-fetch descripciones para detectar incidentes SOS
+    # Batch-fetch descripciones y coordenadas para detectar incidentes SOS y pasar ubicación
     inc_ids = [a.incidente_id for a in asignaciones]
     inc_rows = await db.execute(
-        select(Incidente.id, Incidente.descripcion).where(Incidente.id.in_(inc_ids))
+        select(Incidente.id, Incidente.descripcion, Incidente.latitud, Incidente.longitud).where(Incidente.id.in_(inc_ids))
     )
-    inc_desc = {row.id: (row.descripcion or "") for row in inc_rows.all()}
+    inc_map = {row.id: row for row in inc_rows.all()}
 
     responses = []
     for a in asignaciones:
         r = schemas.AsignacionResponse.model_validate(a)
-        r.es_sos = "SOS" in inc_desc.get(a.incidente_id, "")
+        inc_info = inc_map.get(a.incidente_id)
+        if inc_info:
+            r.es_sos = "SOS" in (inc_info.descripcion or "")
+            r.incidente_latitud = inc_info.latitud
+            r.incidente_longitud = inc_info.longitud
         responses.append(r)
     return responses
 

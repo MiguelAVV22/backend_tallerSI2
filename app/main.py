@@ -26,6 +26,8 @@ from app.comunicacion.router     import router as comunicacion_router
 from app.reportes.router         import router as reportes_router
 from app.ia.router               import router as ia_router
 from app.seguimiento.router      import router as seguimiento_router
+from app.metricas.router         import router as metricas_router
+
 
 
 @asynccontextmanager
@@ -87,6 +89,8 @@ app.include_router(comunicacion_router, prefix="/api/comunicacion", tags=["Comun
 app.include_router(reportes_router,     prefix="/api/reportes",     tags=["Reportes"])
 app.include_router(ia_router,           prefix="/api/ia",           tags=["Inteligencia Artificial"])
 app.include_router(seguimiento_router,  prefix="/ws",               tags=["Seguimiento en Tiempo Real"])
+app.include_router(metricas_router,     prefix="/api/metricas",     tags=["Métricas y Dashboard"])
+
 
 
 @app.get("/")

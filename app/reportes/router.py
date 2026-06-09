@@ -105,14 +105,171 @@ async def historial(
 
 # ── Métricas del taller ───────────────────────────────────
 @router.get("/metricas/taller")
-async def metricas_taller():
-    return {"msg": "metricas del taller"}
+async def metricas_taller(
+    desde: Optional[str] = Query(None),
+    hasta: Optional[str] = Query(None),
+    current_user: User = Depends(require_role("taller")),
+    db: AsyncSession = Depends(get_db),
+):
+    from sqlalchemy import select
+    from app.cotizacion_pagos.models import Cotizacion, Pago
+    from app.talleres_tecnicos.models import Asignacion
+    from app.emergencias.models import Incidente
+    from app.talleres_tecnicos.service import get_taller_by_user
+
+    taller = await get_taller_by_user(current_user.id, db)
+
+    # Parse optional date filters
+    dt_desde: Optional[datetime] = None
+    dt_hasta: Optional[datetime] = None
+    try:
+        if desde:
+            dt_desde = datetime.fromisoformat(desde)
+        if hasta:
+            dt_hasta = datetime.fromisoformat(hasta)
+    except ValueError:
+        pass
+
+    # All cotizaciones of this workshop
+    cot_q = select(Cotizacion).where(Cotizacion.taller_id == taller.id)
+    if dt_desde:
+        cot_q = cot_q.where(Cotizacion.created_at >= dt_desde)
+    if dt_hasta:
+        cot_q = cot_q.where(Cotizacion.created_at <= dt_hasta)
+    cot_res = await db.execute(cot_q)
+    cotizaciones = list(cot_res.scalars().all())
+
+    cot_ids = [c.id for c in cotizaciones]
+    cot_map = {c.id: c for c in cotizaciones}
+    inc_ids  = list({c.incidente_id for c in cotizaciones})
+
+    # Fetch paid payments for these cotizaciones
+    pagos = []
+    if cot_ids:
+        pag_q = select(Pago).where(Pago.cotizacion_id.in_(cot_ids))
+        pag_res = await db.execute(pag_q)
+        pagos = list(pag_res.scalars().all())
+
+    # Count finalizados (asignaciones con estado finalizado)
+    fin_count = 0
+    if inc_ids:
+        fin_res = await db.execute(
+            select(Asignacion).where(
+                Asignacion.taller_id == taller.id,
+                Asignacion.estado == "finalizado",
+            )
+        )
+        fin_count = len(fin_res.scalars().all())
+
+    servicios_pagados = len(pagos)
+    ingresos_brutos   = round(sum(p.monto for p in pagos), 2)
+    comision          = round(sum(p.comision for p in pagos), 2)
+    ingresos_netos    = round(ingresos_brutos - comision, 2)
+    ticket_promedio   = round(ingresos_brutos / servicios_pagados, 2) if servicios_pagados else 0.0
+
+    detalle_pagos = []
+    for p in sorted(pagos, key=lambda x: x.created_at or datetime.min, reverse=True):
+        cot = cot_map.get(p.cotizacion_id)
+        detalle_pagos.append({
+            "pago_id":        p.id,
+            "cotizacion_id":  p.cotizacion_id,
+            "incidente_id":   cot.incidente_id if cot else None,
+            "monto":          round(p.monto, 2),
+            "metodo":         p.metodo,
+            "fecha":          p.created_at.isoformat() if p.created_at else None,
+        })
+
+    return {
+        "desde":               desde,
+        "hasta":               hasta,
+        "total_servicios":     len(cotizaciones),
+        "servicios_finalizados": fin_count,
+        "servicios_pagados":   servicios_pagados,
+        "ingresos_brutos":     ingresos_brutos,
+        "comision_plataforma": comision,
+        "ingresos_netos":      ingresos_netos,
+        "ticket_promedio":     ticket_promedio,
+        "promedio_calificacion": None,
+        "total_calificaciones": 0,
+        "detalle_pagos":       detalle_pagos,
+    }
 
 
 # ── Métricas globales ─────────────────────────────────────
 @router.get("/metricas/globales")
-async def metricas_globales():
-    return {"msg": "metricas globales"}
+async def metricas_globales(
+    desde: Optional[str] = Query(None),
+    hasta: Optional[str] = Query(None),
+    current_user: User = Depends(require_role("admin", "taller")),
+    db: AsyncSession = Depends(get_db),
+):
+    from sqlalchemy import select
+    from app.cotizacion_pagos.models import Cotizacion, Pago
+    from app.talleres_tecnicos.models import Asignacion
+
+    dt_desde: Optional[datetime] = None
+    dt_hasta: Optional[datetime] = None
+    try:
+        if desde:
+            dt_desde = datetime.fromisoformat(desde)
+        if hasta:
+            dt_hasta = datetime.fromisoformat(hasta)
+    except ValueError:
+        pass
+
+    # All cotizaciones
+    cot_q = select(Cotizacion)
+    if dt_desde:
+        cot_q = cot_q.where(Cotizacion.created_at >= dt_desde)
+    if dt_hasta:
+        cot_q = cot_q.where(Cotizacion.created_at <= dt_hasta)
+    cot_res = await db.execute(cot_q)
+    cotizaciones = list(cot_res.scalars().all())
+    cot_ids = [c.id for c in cotizaciones]
+    cot_map = {c.id: c for c in cotizaciones}
+
+    pagos = []
+    if cot_ids:
+        pag_res = await db.execute(select(Pago).where(Pago.cotizacion_id.in_(cot_ids)))
+        pagos = list(pag_res.scalars().all())
+
+    fin_res = await db.execute(
+        select(Asignacion).where(Asignacion.estado == "finalizado")
+    )
+    fin_count = len(fin_res.scalars().all())
+
+    servicios_pagados = len(pagos)
+    ingresos_brutos   = round(sum(p.monto for p in pagos), 2)
+    comision          = round(sum(p.comision for p in pagos), 2)
+    ingresos_netos    = round(ingresos_brutos - comision, 2)
+    ticket_promedio   = round(ingresos_brutos / servicios_pagados, 2) if servicios_pagados else 0.0
+
+    detalle_pagos = []
+    for p in sorted(pagos, key=lambda x: x.created_at or datetime.min, reverse=True):
+        cot = cot_map.get(p.cotizacion_id)
+        detalle_pagos.append({
+            "pago_id":       p.id,
+            "cotizacion_id": p.cotizacion_id,
+            "incidente_id":  cot.incidente_id if cot else None,
+            "monto":         round(p.monto, 2),
+            "metodo":        p.metodo,
+            "fecha":         p.created_at.isoformat() if p.created_at else None,
+        })
+
+    return {
+        "desde":               desde,
+        "hasta":               hasta,
+        "total_servicios":     len(cotizaciones),
+        "servicios_finalizados": fin_count,
+        "servicios_pagados":   servicios_pagados,
+        "ingresos_brutos":     ingresos_brutos,
+        "comision_plataforma": comision,
+        "ingresos_netos":      ingresos_netos,
+        "ticket_promedio":     ticket_promedio,
+        "promedio_calificacion": None,
+        "total_calificaciones": 0,
+        "detalle_pagos":       detalle_pagos,
+    }
 
 
 # ── CU35 - Auditoría / Bitácora ────────────────────────────
