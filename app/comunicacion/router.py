@@ -61,7 +61,57 @@ async def listar_mensajes(
     return await service.listar_mensajes(asignacion_id, current_user.id, current_user.role, db)
 
 
-# ── CU22 · Recibir notificaciones (stub) ──────────────────────
-@router.get("/notificaciones")
-async def notificaciones():
-    return {"msg": "CU22 - notificaciones"}
+# ── CU22 · Recibir notificaciones ──────────────────────
+@router.get("/notificaciones", response_model=list[schemas.NotificacionResponse])
+async def listar_notificaciones(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.comunicacion.models import Notificacion
+    from sqlalchemy import select
+    result = await db.execute(
+        select(Notificacion)
+        .where(Notificacion.user_id == current_user.id)
+        .order_by(Notificacion.created_at.desc())
+    )
+    return result.scalars().all()
+
+
+@router.patch("/notificaciones/{id}/leida")
+async def marcar_notificacion_leida(
+    id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    from app.comunicacion.models import Notificacion
+    from fastapi import HTTPException
+    from sqlalchemy import select
+    result = await db.execute(
+        select(Notificacion).where(Notificacion.id == id, Notificacion.user_id == current_user.id)
+    )
+    notif = result.scalar_one_or_none()
+    if not notif:
+        raise HTTPException(status_code=404, detail="Notificación no encontrada")
+    notif.leida = True
+    await db.commit()
+    return {"id": id, "leida": True}
+
+
+
+@router.post("/notificaciones/token", status_code=status.HTTP_200_OK)
+async def registrar_token(
+    data: schemas.TokenRegister,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await service.registrar_token_fcm(current_user.id, data.token, db)
+
+
+@router.delete("/notificaciones/token", status_code=status.HTTP_200_OK)
+async def eliminar_token(
+    data: schemas.TokenRegister,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await service.eliminar_token_fcm(current_user.id, data.token, db)
+

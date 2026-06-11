@@ -6,7 +6,7 @@ from sqlalchemy.orm import undefer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.acceso_registro.models import Taller, User
-from app.comunicacion.models import Mensaje
+from app.comunicacion.models import Mensaje, DeviceToken
 from app.comunicacion.schemas import (
     MensajeCreate, MensajeResponse,
     UbicacionTecnicoResponse, UbicacionTecnicoUpdate,
@@ -134,6 +134,42 @@ async def enviar_mensaje(
     res_u = await db.execute(select(User).where(User.id == user_id))
     user = res_u.scalar_one()
 
+    # Enviar notificación push al destinatario del mensaje en segundo plano
+    try:
+        destinatario_id = None
+        if role == "cliente":
+            if asignacion.tecnico_id:
+                res_t = await db.execute(
+                    select(Tecnico).where(Tecnico.id == asignacion.tecnico_id)
+                )
+                tecnico = res_t.scalar_one_or_none()
+                if tecnico:
+                    destinatario_id = tecnico.usuario_id
+        else:
+            res_i = await db.execute(
+                select(Incidente).where(Incidente.id == asignacion.incidente_id)
+            )
+            incidente = res_i.scalar_one_or_none()
+            if incidente:
+                destinatario_id = incidente.usuario_id
+
+        if destinatario_id:
+            from app.comunicacion.push_service import enviar_notificacion_push
+            remitente_nombre = user.full_name or user.username
+            await enviar_notificacion_push(
+                usuario_id=destinatario_id,
+                titulo=f"Chat: {remitente_nombre}",
+                cuerpo=mensaje.contenido,
+                data={
+                    "screen": "/comunicacion/chat",
+                    "asignacion_id": str(asignacion.id),
+                    "nombreContacto": remitente_nombre,
+                },
+                db=db
+            )
+    except Exception as e:
+        print(f"[PushService] Error al disparar push del chat: {e}")
+
     return MensajeResponse(
         id=mensaje.id,
         asignacion_id=mensaje.asignacion_id,
@@ -175,3 +211,33 @@ async def listar_mensajes(
         )
         for m, u in result.all()
     ]
+
+
+async def registrar_token_fcm(user_id: int, token: str, db: AsyncSession) -> dict:
+    result = await db.execute(
+        select(DeviceToken).where(DeviceToken.token == token)
+    )
+    db_token = result.scalar_one_or_none()
+    
+    if db_token:
+        if db_token.usuario_id != user_id:
+            db_token.usuario_id = user_id
+            await db.commit()
+    else:
+        new_token = DeviceToken(usuario_id=user_id, token=token)
+        db.add(new_token)
+        await db.commit()
+        
+    return {"ok": True}
+
+
+async def eliminar_token_fcm(user_id: int, token: str, db: AsyncSession) -> dict:
+    result = await db.execute(
+        select(DeviceToken).where(DeviceToken.usuario_id == user_id, DeviceToken.token == token)
+    )
+    db_token = result.scalar_one_or_none()
+    if db_token:
+        await db.delete(db_token)
+        await db.commit()
+    return {"ok": True}
+

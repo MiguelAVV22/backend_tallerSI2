@@ -60,6 +60,20 @@ async def lifespan(app: FastAPI):
     async with AsyncSessionLocal() as session:
         await session.execute(text("SELECT 1"))
 
+    # Inicializar Firebase Admin SDK
+    import firebase_admin
+    from firebase_admin import credentials
+    from app.core.config import settings
+
+    if not firebase_admin._apps:
+        cred_path = settings.FIREBASE_CREDENTIALS_PATH
+        if os.path.exists(cred_path):
+            cred = credentials.Certificate(cred_path)
+            firebase_admin.initialize_app(cred)
+            print("[Firebase] Inicializado correctamente con la cuenta de servicio.")
+        else:
+            print(f"[Firebase] ADVERTENCIA: El archivo de credenciales no existe en '{cred_path}'. Las notificaciones push no funcionarán.")
+
     # §4.5 – Inicializar modelos IA en startup
     from app.ia import clasificador
     clasificador.inicializar()

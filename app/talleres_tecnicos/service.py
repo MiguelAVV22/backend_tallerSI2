@@ -218,6 +218,40 @@ async def actualizar_estado_asignacion(
             tec.estado = "disponible"
 
     await db.commit()
+
+    # Disparar notificaciones push al cliente por cambio de estado
+    try:
+        from app.comunicacion.push_service import enviar_notificacion_push
+        from app.emergencias.models import Incidente
+        res_i = await db.execute(
+            select(Incidente).where(Incidente.id == asignacion.incidente_id)
+        )
+        inc = res_i.scalar_one_or_none()
+        if inc:
+            labels = {
+                "pendiente": "Pendiente",
+                "buscando_taller": "Buscando Taller",
+                "aceptado": "Aceptado",
+                "en_camino": "En Camino",
+                "llegada": "Llegada",
+                "en_sitio": "En Sitio",
+                "en_reparacion": "Reparando",
+                "finalizado": "Finalizado",
+                "cancelado": "Cancelado"
+            }
+            lbl = labels.get(data.estado.lower(), data.estado)
+            await enviar_notificacion_push(
+                usuario_id=inc.usuario_id,
+                titulo="Actualización de tu Asistencia 🔔",
+                cuerpo=f"El estado de tu servicio cambió a: {lbl}",
+                data={
+                    "screen": "/seguimiento",
+                    "incidente_id": str(asignacion.incidente_id),
+                },
+                db=db
+            )
+    except Exception as e:
+        print(f"[PushService] Error al disparar push de estado: {e}")
     await db.refresh(asignacion)
     return asignacion
 
@@ -359,6 +393,23 @@ async def confirmar_llegada_tecnico(
     asignacion.estado = "en_sitio"
     await db.commit()
     await db.refresh(asignacion)
+
+    # Disparar notificación push al cliente
+    try:
+        from app.comunicacion.push_service import enviar_notificacion_push
+        await enviar_notificacion_push(
+            usuario_id=usuario_id,
+            titulo="El técnico ha llegado 📍",
+            cuerpo="Se ha confirmado la llegada del técnico al lugar del incidente.",
+            data={
+                "screen": "/seguimiento",
+                "incidente_id": str(asignacion.incidente_id),
+            },
+            db=db
+        )
+    except Exception as e:
+        print(f"[PushService] Error al disparar push de llegada cliente: {e}")
+
     return asignacion
 
 
@@ -388,4 +439,47 @@ async def asignar_tecnico_a_solicitud(
     tecnico.estado = "ocupado"
     await db.commit()
     await db.refresh(asignacion)
+
+    # Disparar notificaciones push en segundo plano
+    try:
+        from app.comunicacion.push_service import enviar_notificacion_push
+        from app.emergencias.models import Incidente
+        from app.acceso_registro.models import Taller
+
+        # 1. Notificar al técnico
+        await enviar_notificacion_push(
+            usuario_id=tecnico.usuario_id,
+            titulo="Nuevo Auxilio Asignado 🛠️",
+            cuerpo="Se te ha asignado un nuevo servicio de auxilio mecánico.",
+            data={
+                "screen": "/seguimiento",
+                "incidente_id": str(asignacion.incidente_id),
+            },
+            db=db
+        )
+
+        # 2. Notificar al cliente
+        res_i = await db.execute(
+            select(Incidente).where(Incidente.id == asignacion.incidente_id)
+        )
+        inc = res_i.scalar_one_or_none()
+        if inc:
+            res_tl = await db.execute(
+                select(Taller).where(Taller.id == taller_id)
+            )
+            tl = res_tl.scalar_one_or_none()
+            taller_nombre = tl.nombre if tl else "el taller mecánico"
+            await enviar_notificacion_push(
+                usuario_id=inc.usuario_id,
+                titulo="¡Técnico Asignado! 🚗",
+                cuerpo=f"El técnico {tecnico.nombre} de {taller_nombre} va en camino.",
+                data={
+                    "screen": "/seguimiento",
+                    "incidente_id": str(asignacion.incidente_id),
+                },
+                db=db
+            )
+    except Exception as e:
+        print(f"[PushService] Error al disparar notificaciones de asignación: {e}")
+
     return asignacion

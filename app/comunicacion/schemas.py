@@ -60,3 +60,22 @@ class MensajeResponse(BaseModel):
     rol: str
     contenido: str
     created_at: datetime
+
+
+class TokenRegister(BaseModel):
+    token: str
+
+
+class NotificacionResponse(BaseModel):
+    id: int
+    user_id: int
+    incidente_id: Optional[int] = None
+    titulo: str
+    mensaje: str
+    tipo: Optional[str] = None
+    leida: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+

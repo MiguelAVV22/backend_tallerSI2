@@ -286,6 +286,16 @@ async def listar_mis_solicitudes(usuario_id: int, db: AsyncSession) -> list[dict
         if asig:
             taller_res = await db.execute(select(Taller).where(Taller.id == asig.taller_id))
             taller     = taller_res.scalar_one_or_none()
+            tecnico_nombre = None
+            tecnico_telefono = None
+            if asig.tecnico_id:
+                from app.talleres_tecnicos.models import Tecnico
+                tecnico_res = await db.execute(select(Tecnico).where(Tecnico.id == asig.tecnico_id))
+                tecnico = tecnico_res.scalar_one_or_none()
+                if tecnico:
+                    tecnico_nombre = tecnico.nombre
+                    tecnico_telefono = tecnico.telefono
+
             asig_data  = {
                 "id": asig.id,
                 "estado": asig.estado,
@@ -293,6 +303,8 @@ async def listar_mis_solicitudes(usuario_id: int, db: AsyncSession) -> list[dict
                 "taller_id": asig.taller_id,
                 "taller_nombre": taller.nombre if taller else None,
                 "tecnico_id": asig.tecnico_id,
+                "tecnico_nombre": tecnico_nombre,
+                "tecnico_telefono": tecnico_telefono,
                 "observacion": asig.observacion,
             }
 
