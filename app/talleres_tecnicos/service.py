@@ -6,10 +6,11 @@ from fastapi import HTTPException
 from app.talleres_tecnicos.models import Tecnico, Asignacion, ServicioRealizado, UnidadAuxilio
 from app.acceso_registro.models import Taller, User
 from app.core.security import hash_password
+from app.talleres_tecnicos import schemas
 from app.talleres_tecnicos.schemas import (
     TecnicoCreate, TecnicoUpdate, TallerInfoResponse,
     AsignacionEstadoUpdate, TRANSICIONES_VALIDAS,
-    ServicioRealizadoCreate, UnidadAuxilioCreate
+    ServicioRealizadoCreate, UnidadAuxilioCreate, TallerUpdatePayload
 )
 
 
