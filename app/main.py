@@ -30,6 +30,74 @@ from app.metricas.router         import router as metricas_router
 
 
 
+async def seed_initial_data(db: AsyncSession):
+    from sqlalchemy import select
+    from app.acceso_registro.models import User, Taller, Tenant
+    from app.core.security import hash_password
+
+    res = await db.execute(select(User).where(User.email == "admin@taller.com"))
+    if res.scalar_one_or_none():
+        return
+
+    print("[Seed] Base de datos vacía detectada. Poblando usuarios iniciales de prueba...")
+
+    res_t1 = await db.execute(select(Tenant).where(Tenant.id == 1))
+    if not res_t1.scalar_one_or_none():
+        db.add(Tenant(id=1, nombre="Red Auxilio Norte", slug="auxilio-norte", activo=True))
+
+    res_t2 = await db.execute(select(Tenant).where(Tenant.id == 2))
+    if not res_t2.scalar_one_or_none():
+        db.add(Tenant(id=2, nombre="Red Mecánicos Express", slug="mecanicos-express", activo=True))
+
+    await db.flush()
+
+    pass_hash = hash_password("12345678")
+    users_data = [
+        {"email": "admin@taller.com",    "username": "admin",    "full_name": "Administrador",   "role": "admin",   "tenant_id": 1},
+        {"email": "cliente@taller.com",  "username": "cliente",  "full_name": "Carlos Mendoza",  "role": "cliente", "tenant_id": 1},
+        {"email": "taller@taller.com",   "username": "taller",   "full_name": "AutoFix Express", "role": "taller",  "tenant_id": 1},
+        {"email": "taller2@taller.com",  "username": "taller2",  "full_name": "Mecánica Central","role": "taller",  "tenant_id": 2},
+        {"email": "tecnico@taller.com",  "username": "tecnico",  "full_name": "Luis Vargas",     "role": "tecnico", "tenant_id": 1},
+        {"email": "tecnico3@taller.com", "username": "tecnico3", "full_name": "Hugo Banzer",    "role": "tecnico", "tenant_id": 1},
+    ]
+
+    user_objs = {}
+    for u in users_data:
+        res_u = await db.execute(select(User).where(User.email == u["email"]))
+        existing_user = res_u.scalar_one_or_none()
+        if not existing_user:
+            new_u = User(
+                email=u["email"],
+                username=u["username"],
+                full_name=u["full_name"],
+                hashed_password=pass_hash,
+                role=u["role"],
+                tenant_id=u["tenant_id"]
+            )
+            db.add(new_u)
+            await db.flush()
+            user_objs[u["username"]] = new_u
+        else:
+            user_objs[u["username"]] = existing_user
+
+    await db.commit()
+
+    if "taller" in user_objs:
+        u_t1 = user_objs["taller"]
+        res_tal1 = await db.execute(select(Taller).where(Taller.usuario_id == u_t1.id))
+        if not res_tal1.scalar_one_or_none():
+            db.add(Taller(usuario_id=u_t1.id, nombre="AutoFix Express", direccion="Av. 6 de Agosto #123, La Paz", telefono="71234567", email_comercial="contacto@autofix.bo", latitud=-16.5000, longitud=-68.1500, disponible=True, estado="aprobado", tenant_id=1))
+
+    if "taller2" in user_objs:
+        u_t2 = user_objs["taller2"]
+        res_tal2 = await db.execute(select(Taller).where(Taller.usuario_id == u_t2.id))
+        if not res_tal2.scalar_one_or_none():
+            db.add(Taller(usuario_id=u_t2.id, nombre="Mecánica Central", direccion="Calle España #45, Santa Cruz", telefono="77654321", email_comercial="info@mecanicacentral.bo", latitud=-17.7833, longitud=-63.1821, disponible=True, estado="aprobado", tenant_id=2))
+
+    await db.commit()
+    print("[Seed] Base de datos poblada perfectamente.")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Directorios de uploads para §4.4
@@ -90,17 +158,12 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE asignaciones ADD COLUMN IF NOT EXISTS unidad_auxilio_id INTEGER REFERENCES unidades_auxilio(id)"
         ))
 
-    # Pool warm-up y auto-población de datos si la BD está vacía
+    # Pool warm-up y auto-población limpia de datos si la BD está vacía
     async with AsyncSessionLocal() as session:
-        result = await session.execute(text("SELECT 1 FROM users LIMIT 1"))
-        if not result.scalar_one_or_none():
-            print("[Seed] Base de datos vacía detectada. Poblando usuarios y datos iniciales de prueba...")
-            try:
-                from seed import seed
-                await seed()
-                print("[Seed] Base de datos poblada exitosamente.")
-            except Exception as e:
-                print(f"[Seed] Error cargando datos iniciales: {e}")
+        try:
+            await seed_initial_data(session)
+        except Exception as e:
+            print(f"[Seed] Error cargando datos iniciales: {e}")
 
     # Inicializar Firebase Admin SDK
     import firebase_admin
