@@ -7,6 +7,7 @@ class Cotizacion(Base):
     __tablename__ = "cotizaciones"
 
     id             = Column(Integer, primary_key=True, index=True)
+    tenant_id      = Column(Integer, ForeignKey("tenants.id"), nullable=False, default=1, server_default="1")
     incidente_id   = Column(Integer, ForeignKey("incidentes.id"), nullable=False)
     taller_id      = Column(Integer, ForeignKey("talleres.id"), nullable=False)
     monto_estimado = Column(Float, nullable=False)
@@ -19,6 +20,7 @@ class Pago(Base):
     __tablename__ = "pagos"
 
     id            = Column(Integer, primary_key=True, index=True)
+    tenant_id     = Column(Integer, ForeignKey("tenants.id"), nullable=False, default=1, server_default="1")
     cotizacion_id = Column(Integer, ForeignKey("cotizaciones.id"), nullable=False, unique=True)
     usuario_id    = Column(Integer, ForeignKey("users.id"), nullable=False)
     monto         = Column(Float, nullable=False)

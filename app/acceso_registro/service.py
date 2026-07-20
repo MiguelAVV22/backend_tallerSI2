@@ -6,8 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from fastapi import HTTPException, status
 
-from app.acceso_registro.models import User, Vehiculo, Taller, PasswordResetCode
-from app.acceso_registro.schemas import UserCreate, UserLogin, VehiculoCreate, TallerCreate, UserUpdate
+from app.acceso_registro.models import User, Vehiculo, Taller, PasswordResetCode, ContactoEmergencia
+from app.acceso_registro.schemas import UserCreate, UserLogin, VehiculoCreate, TallerCreate, UserUpdate, ContactoEmergenciaCreate
 from app.core.security import hash_password, verify_password, create_access_token
 
 
@@ -28,11 +28,17 @@ async def registrar_usuario(data: UserCreate, db: AsyncSession) -> tuple[str, Us
         telefono=data.telefono,
         hashed_password=hash_password(data.password),
         role="cliente",
+        tenant_id=data.tenant_id if data.tenant_id else 1,
     )
     db.add(user)
     await db.commit()
     await db.refresh(user)
-    token = create_access_token({"sub": str(user.id), "email": user.email, "role": user.role})
+    token = create_access_token({
+        "sub": str(user.id),
+        "email": user.email,
+        "role": user.role,
+        "tenant_id": user.tenant_id
+    })
     return token, user
 
 
@@ -46,7 +52,12 @@ async def iniciar_sesion(data: UserLogin, db: AsyncSession) -> tuple[str, User]:
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Cuenta desactivada")
 
-    token = create_access_token({"sub": str(user.id), "email": user.email, "role": user.role})
+    token = create_access_token({
+        "sub": str(user.id),
+        "email": user.email,
+        "role": user.role,
+        "tenant_id": user.tenant_id
+    })
     return token, user
 
 
@@ -115,6 +126,7 @@ async def crear_vehiculo(data: VehiculoCreate, user: User, db: AsyncSession) -> 
         raise HTTPException(status_code=400, detail="La placa ya está registrada en el sistema")
 
     vehiculo = Vehiculo(
+        tenant_id=user.tenant_id,
         usuario_id=user.id,
         placa=data.placa,
         marca=data.marca,
@@ -153,6 +165,7 @@ async def crear_taller(data: TallerCreate, user: User, db: AsyncSession) -> Tall
         raise HTTPException(status_code=400, detail="Ya tienes un taller registrado")
 
     taller = Taller(
+        tenant_id=user.tenant_id,
         usuario_id=user.id,
         nombre=data.nombre,
         direccion=data.direccion,
@@ -261,5 +274,48 @@ async def toggle_usuario_activo(
     await db.commit()
     await db.refresh(user)
     return user
+
+
+async def listar_contactos_emergencia(usuario_id: int, db: AsyncSession) -> list[ContactoEmergencia]:
+    result = await db.execute(
+        select(ContactoEmergencia)
+        .where(ContactoEmergencia.usuario_id == usuario_id)
+        .order_by(ContactoEmergencia.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+async def crear_contacto_emergencia(
+    usuario_id: int, data: ContactoEmergenciaCreate, db: AsyncSession
+) -> ContactoEmergencia:
+    # Obtener el usuario para copiar su tenant_id
+    user_res = await db.execute(select(User).where(User.id == usuario_id))
+    db_user = user_res.scalar_one_or_none()
+    
+    contacto = ContactoEmergencia(
+        tenant_id=db_user.tenant_id if db_user else 1,
+        usuario_id=usuario_id,
+        nombre=data.nombre.strip(),
+        telefono=data.telefono.strip(),
+        relacion=data.relacion.strip(),
+    )
+    db.add(contacto)
+    await db.commit()
+    await db.refresh(contacto)
+    return contacto
+
+
+async def eliminar_contacto_emergencia(contacto_id: int, usuario_id: int, db: AsyncSession) -> None:
+    result = await db.execute(
+        select(ContactoEmergencia).where(
+            ContactoEmergencia.id == contacto_id,
+            ContactoEmergencia.usuario_id == usuario_id,
+        )
+    )
+    contacto = result.scalar_one_or_none()
+    if not contacto:
+        raise HTTPException(status_code=404, detail="Contacto de emergencia no encontrado")
+    await db.delete(contacto)
+    await db.commit()
 
 

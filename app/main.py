@@ -40,6 +40,27 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
+        # Asegurar que existe el Tenant por defecto (ID=1)
+        await conn.execute(text(
+            "INSERT INTO tenants (id, nombre, slug, activo, created_at) "
+            "VALUES (1, 'Red Auxilio General', 'general', true, NOW()) "
+            "ON CONFLICT (id) DO NOTHING"
+        ))
+
+        # Agregar tenant_id a las tablas operativas
+        tablas = [
+            "users", "vehiculos", "contactos_emergencia", "talleres", "tecnicos", 
+            "asignaciones", "unidades_auxilio", "servicios_realizados", "incidentes", 
+            "evidencias", "cotizaciones", "pagos"
+        ]
+        for t in tablas:
+            await conn.execute(text(
+                f"ALTER TABLE {t} ADD COLUMN IF NOT EXISTS tenant_id INTEGER REFERENCES tenants(id) DEFAULT 1"
+            ))
+            await conn.execute(text(
+                f"ALTER TABLE {t} ALTER COLUMN tenant_id SET NOT NULL"
+            ))
+
         # Columnas deferred de Tecnico (añadidas después del create_all inicial)
         await conn.execute(text(
             "ALTER TABLE tecnicos ADD COLUMN IF NOT EXISTS latitud DOUBLE PRECISION"
@@ -54,6 +75,19 @@ async def lifespan(app: FastAPI):
         # §4.5 – Columna tipo_incidente en incidentes (clasificación IA)
         await conn.execute(text(
             "ALTER TABLE incidentes ADD COLUMN IF NOT EXISTS tipo_incidente VARCHAR(50)"
+        ))
+
+        # Nuevas columnas para vehículos (tipo y peso)
+        await conn.execute(text(
+            "ALTER TABLE vehiculos ADD COLUMN IF NOT EXISTS tipo VARCHAR(50)"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE vehiculos ADD COLUMN IF NOT EXISTS peso_kg INTEGER"
+        ))
+
+        # Nueva columna para asignaciones (unidad_auxilio_id)
+        await conn.execute(text(
+            "ALTER TABLE asignaciones ADD COLUMN IF NOT EXISTS unidad_auxilio_id INTEGER REFERENCES unidades_auxilio(id)"
         ))
 
     # Pool warm-up

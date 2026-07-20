@@ -7,6 +7,8 @@ class TecnicoCreate(BaseModel):
     nombre: str
     especialidad: str
     telefono: Optional[str] = None
+    email: Optional[str] = None
+    password: Optional[str] = None
 
     @field_validator("nombre")
     @classmethod
@@ -48,11 +50,12 @@ class AsignacionResponse(BaseModel):
     incidente_id: int
     taller_id: int
     tecnico_id: Optional[int]
+    unidad_auxilio_id: Optional[int] = None
     estado: str
     eta: Optional[int]
     observacion: Optional[str]
     created_at: datetime
-    es_sos: bool = False  # Poblado solo en /asignaciones/activas
+    es_sos: bool = False
     incidente_latitud: Optional[float] = None
     incidente_longitud: Optional[float] = None
 
@@ -61,12 +64,10 @@ class AsignacionResponse(BaseModel):
 
 class AsignarTecnicoPayload(BaseModel):
     tecnico_id: int
+    unidad_auxilio_id: Optional[int] = None
 
 
 # ── CU15 · Estado del servicio ─────────────────────────────
-# Transiciones que puede hacer el taller/técnico desde CU15.
-# en_sitio es preferiblemente confirmado por el cliente (CU31), pero el taller
-# puede hacerlo como fallback para casos SOS o cuando el cliente no tiene señal.
 TRANSICIONES_VALIDAS: dict[str, set[str]] = {
     "aceptado":      {"en_camino", "cancelado"},
     "en_camino":     {"en_sitio",  "cancelado"},
@@ -126,9 +127,18 @@ class ServicioRealizadoResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# ── CU16 · Disponibilidad ──────────────────────────────────
+# ── CU16 · Disponibilidad & Ubicación ────────────────────────
 class DisponibilidadUpdate(BaseModel):
     disponible: bool
+
+
+class TallerUpdatePayload(BaseModel):
+    nombre: Optional[str] = None
+    direccion: Optional[str] = None
+    telefono: Optional[str] = None
+    email_comercial: Optional[str] = None
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
 
 
 class TallerInfoResponse(BaseModel):
@@ -143,5 +153,43 @@ class TallerInfoResponse(BaseModel):
     total_tecnicos: int
     tecnicos_disponibles: int
     tecnicos_ocupados: int
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
+
+    model_config = {"from_attributes": True}
+
+
+class UnidadAuxilioCreate(BaseModel):
+    placa: str
+    modelo: str
+    tipo: str
+    capacidad_carga_kg: int
+
+    @field_validator("placa")
+    @classmethod
+    def placa_valida(cls, v: str) -> str:
+        v = v.strip().upper()
+        if len(v) < 5:
+            raise ValueError("La placa debe tener al menos 5 caracteres")
+        return v
+
+    @field_validator("capacidad_carga_kg")
+    @classmethod
+    def cap_positiva(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("La capacidad debe ser mayor a 0 kg")
+        return v
+
+
+class UnidadAuxilioResponse(BaseModel):
+    id: int
+    taller_id: int
+    placa: str
+    modelo: str
+    tipo: str
+    capacidad_carga_kg: int
+    estado: str
+    activo: bool
+    created_at: datetime
 
     model_config = {"from_attributes": True}

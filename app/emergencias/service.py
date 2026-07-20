@@ -50,6 +50,12 @@ async def crear_incidente(
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Vehículo no encontrado o no pertenece al usuario")
 
+    # Obtener el tenant_id del usuario
+    from app.acceso_registro.models import User
+    user_res = await db.execute(select(User).where(User.id == usuario_id))
+    db_user = user_res.scalar_one_or_none()
+    user_tenant_id = db_user.tenant_id if db_user else 1
+
     # §4.5 – Clasificación automática con IA
     tipo_incidente = None
     if data.descripcion and data.descripcion.strip():
@@ -57,6 +63,7 @@ async def crear_incidente(
         tipo_incidente = res_ia["tipo"]
 
     incidente = Incidente(
+        tenant_id=user_tenant_id,
         usuario_id=usuario_id,
         vehiculo_id=data.vehiculo_id,
         descripcion=data.descripcion,
@@ -89,7 +96,14 @@ async def crear_incidente_sos(
             detail="Debes tener al menos un vehículo registrado para usar el botón SOS",
         )
 
+    # Obtener el tenant_id del usuario
+    from app.acceso_registro.models import User
+    user_res = await db.execute(select(User).where(User.id == usuario_id))
+    db_user = user_res.scalar_one_or_none()
+    user_tenant_id = db_user.tenant_id if db_user else 1
+
     incidente = Incidente(
+        tenant_id=user_tenant_id,
         usuario_id=usuario_id,
         vehiculo_id=vehiculo.id,
         descripcion="🆘 Alerta SOS — Emergencia urgente enviada desde la app",
@@ -143,7 +157,7 @@ async def guardar_foto(
     db: AsyncSession,
 ) -> dict:
     """Guarda la foto, ejecuta análisis IA (§4.4 + §4.5)."""
-    await _get_incidente_usuario(incidente_id, usuario_id, db)
+    inc = await _get_incidente_usuario(incidente_id, usuario_id, db)
 
     from app.ia import analizador_imagen
 
@@ -162,6 +176,7 @@ async def guardar_foto(
     url_publica = f"/uploads/{ruta_rel}"
 
     evidencia = Evidencia(
+        tenant_id=inc.tenant_id,
         incidente_id=incidente_id,
         tipo="foto",
         ruta=ruta_abs,
@@ -189,7 +204,8 @@ async def guardar_audio(
     db: AsyncSession,
 ) -> dict:
     """Guarda el audio, transcribe y clasifica el incidente con IA (§4.5)."""
-    await _get_incidente_usuario(incidente_id, usuario_id, db)
+    inc_db = await _get_incidente_usuario(incidente_id, usuario_id, db)
+    inc_tenant_id = inc_db.tenant_id if inc_db else 1
 
     from app.ia import transcriptor, clasificador as clf
 
@@ -223,6 +239,7 @@ async def guardar_audio(
 
     url_publica = f"/uploads/{ruta_rel}"
     evidencia = Evidencia(
+        tenant_id=inc_tenant_id,
         incidente_id=incidente_id,
         tipo="audio",
         ruta=ruta_abs,

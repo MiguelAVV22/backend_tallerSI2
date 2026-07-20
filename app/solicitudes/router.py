@@ -15,7 +15,7 @@ from app.emergencias.models import Incidente, Evidencia
 from app.talleres_tecnicos.models import Asignacion
 from app.talleres_tecnicos.schemas import AsignacionResponse
 from app.talleres_tecnicos.service import get_taller_by_user
-from app.ia.motor_asignacion import calcular_score, haversine
+from app.ia.motor_asignacion import calcular_score, haversine, RADIO_KM
 from app.ia import clasificador
 
 router = APIRouter()
@@ -53,6 +53,7 @@ async def mis_asignaciones_cliente(
         select(Asignacion)
         .join(Incidente, Asignacion.incidente_id == Incidente.id)
         .where(
+            Incidente.tenant_id == current_user.tenant_id,
             Incidente.usuario_id == current_user.id,
             Asignacion.estado.notin_(_ESTADOS_CERRADOS),
         )
@@ -84,6 +85,7 @@ async def disponibles(
         select(Incidente)
         .options(undefer(Incidente.tipo_incidente))
         .where(
+            Incidente.tenant_id == current_user.tenant_id,
             Incidente.estado == "pendiente",
             or_(
                 and_(Incidente.latitud.isnot(None), Incidente.longitud.isnot(None)),
@@ -117,6 +119,12 @@ async def disponibles(
             taller.latitud, taller.longitud, taller.rating or 0.0,
             taller.disponible, i.latitud, i.longitud, i.prioridad,
         )
+
+        # Filtrar incidentes que superan el radio operativo máximo (50 km) cuando el taller tiene ubicación GPS
+        if taller.latitud is not None and taller.longitud is not None and distancia is not None:
+            if distancia > RADIO_KM:
+                continue
+
         tipo_problema = i.tipo_incidente or ""
         if not tipo_problema and i.descripcion:
             tipo_problema = clasificador.clasificar(i.descripcion).get("etiqueta_es", "")
@@ -189,6 +197,7 @@ async def aceptar(
 
     ahora = datetime.now(timezone.utc)
     asignacion = Asignacion(
+        tenant_id=current_user.tenant_id,
         incidente_id=incidente_id,
         taller_id=taller.id,
         eta=eta_final,
@@ -221,7 +230,10 @@ async def detalle(
     result = await db.execute(
         select(Incidente)
         .options(undefer(Incidente.tipo_incidente))
-        .where(Incidente.id == solicitud_id)
+        .where(
+            Incidente.id == solicitud_id,
+            Incidente.tenant_id == current_user.tenant_id,
+        )
     )
     incidente = result.scalar_one_or_none()
     if not incidente:
@@ -255,6 +267,7 @@ async def cancelar(
         select(Incidente).where(
             Incidente.id == solicitud_id,
             Incidente.usuario_id == current_user.id,
+            Incidente.tenant_id == current_user.tenant_id,
         )
     )
     incidente = result.scalar_one_or_none()

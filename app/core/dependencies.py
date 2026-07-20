@@ -53,18 +53,20 @@ async def get_current_admin(
 
 
 def require_role(*roles: str) -> Callable:
-    """Lee id y role directamente del JWT — sin query a la BD.
-    Devuelve un objeto con .id y .role, suficiente para todos los endpoints protegidos."""
+    """Lee id, role y tenant_id del JWT. Si el rol del token no coincide (ej. recién promovido),
+    verifica el rol actualizado en la base de datos."""
     async def checker(
         credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+        db: AsyncSession = Depends(get_db),
     ) -> SimpleNamespace:
         try:
             payload = decode_token(credentials.credentials)
             user_id: str | None = payload.get("sub")
             role: str | None = payload.get("role")
+            tenant_id: int | None = payload.get("tenant_id")
             if not user_id or not role:
                 raise ValueError("Token sin sub/role — inicia sesión de nuevo")
-        except (JWTError, ValueError):
+        except (JWTError, ValueError) as e:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token inválido o expirado",
@@ -72,10 +74,18 @@ def require_role(*roles: str) -> Callable:
             )
 
         if role not in roles:
+            result = await db.execute(select(User).where(User.id == int(user_id)))
+            db_user = result.scalar_one_or_none()
+            if db_user and db_user.role in roles:
+                role = db_user.role
+                tenant_id = db_user.tenant_id
+
+        if role not in roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Acceso denegado. Se requiere rol: {' o '.join(roles)}",
             )
 
-        return SimpleNamespace(id=int(user_id), role=role)
+        t_id = int(tenant_id) if tenant_id is not None else 1
+        return SimpleNamespace(id=int(user_id), role=role, tenant_id=t_id)
     return checker

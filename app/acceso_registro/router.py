@@ -13,6 +13,14 @@ from app.acceso_registro.models import User
 router = APIRouter()
 
 
+@router.get("/tenants/public", response_model=list[schemas.TenantResponse])
+async def list_tenants_public(db: AsyncSession = Depends(get_db)):
+    from app.acceso_registro.models import Tenant
+    from sqlalchemy import select
+    result = await db.execute(select(Tenant).where(Tenant.activo.is_(True)).order_by(Tenant.nombre.asc()))
+    return [schemas.TenantResponse.model_validate(t) for t in result.scalars().all()]
+
+
 # ── CU01 - Registrarse ─────────────────────────────────────
 @router.post("/register", response_model=schemas.Token, status_code=status.HTTP_201_CREATED)
 async def register(data: schemas.UserCreate, request: Request, db: AsyncSession = Depends(get_db)):
@@ -227,3 +235,31 @@ async def rechazar_taller(
                      usuario_nombre=current_user.username, entidad="Taller", entidad_id=taller_id,
                      ip=request.client.host if request.client else None)
     return TallerResponse.model_validate(taller)
+
+
+# ── Contactos de Emergencia ───────────────────────────────
+@router.get("/contactos-emergencia", response_model=list[schemas.ContactoEmergenciaResponse])
+async def obtener_contactos_emergencia(
+    current_user: User = Depends(require_role("cliente")),
+    db: AsyncSession = Depends(get_db),
+):
+    contactos = await service.listar_contactos_emergencia(current_user.id, db)
+    return [schemas.ContactoEmergenciaResponse.model_validate(c) for c in contactos]
+
+
+@router.post("/contactos-emergencia", response_model=schemas.ContactoEmergenciaResponse, status_code=status.HTTP_201_CREATED)
+async def registrar_contacto_emergencia(
+    data: schemas.ContactoEmergenciaCreate,
+    current_user: User = Depends(require_role("cliente")),
+    db: AsyncSession = Depends(get_db),
+):
+    return await service.crear_contacto_emergencia(current_user.id, data, db)
+
+
+@router.delete("/contactos-emergencia/{contacto_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def borrar_contacto_emergencia(
+    contacto_id: int,
+    current_user: User = Depends(require_role("cliente")),
+    db: AsyncSession = Depends(get_db),
+):
+    await service.eliminar_contacto_emergencia(contacto_id, current_user.id, db)

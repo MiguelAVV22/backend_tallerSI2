@@ -3,8 +3,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.metricas import service
+from app.core.dependencies import require_role
 
 router = APIRouter()
+
+
+@router.get("/heatmap")
+async def get_heatmap(
+    current_user = Depends(require_role("taller")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Obtener coordenadas de incidentes para el mapa de calor del tenant del taller."""
+    return await service.obtener_heatmap_tenant(current_user.tenant_id, db)
 
 @router.get("/dashboard-taller")
 async def dashboard_taller(

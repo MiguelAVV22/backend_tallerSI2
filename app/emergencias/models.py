@@ -8,6 +8,7 @@ class Incidente(Base):
     __tablename__ = "incidentes"
 
     id         = Column(Integer, primary_key=True, index=True)
+    tenant_id  = Column(Integer, ForeignKey("tenants.id"), nullable=False, default=1, server_default="1")
     usuario_id = Column(Integer, ForeignKey("users.id"),    nullable=False)
     vehiculo_id= Column(Integer, ForeignKey("vehiculos.id"), nullable=False)
     latitud    = Column(Float,  nullable=True)
@@ -25,6 +26,7 @@ class Evidencia(Base):
     __tablename__ = "evidencias"
 
     id           = Column(Integer, primary_key=True, index=True)
+    tenant_id    = Column(Integer, ForeignKey("tenants.id"), nullable=False, default=1, server_default="1")
     incidente_id = Column(Integer, ForeignKey("incidentes.id"), nullable=False, index=True)
     tipo         = Column(String(10), nullable=False)       # foto | audio
     ruta         = Column(String(500), nullable=False)      # path en servidor

@@ -4,6 +4,16 @@ from typing import Optional
 import re
 
 
+# ── Tenant ──────────────────────────────────────────────────
+class TenantResponse(BaseModel):
+    id: int
+    nombre: str
+    slug: str
+    activo: bool
+
+    model_config = {"from_attributes": True}
+
+
 # ── Usuario ────────────────────────────────────────────────
 class UserCreate(BaseModel):
     email: str
@@ -11,6 +21,7 @@ class UserCreate(BaseModel):
     full_name: Optional[str] = None
     telefono: Optional[str] = None
     password: str
+    tenant_id: Optional[int] = 1
 
     @field_validator("email")
     @classmethod
@@ -43,6 +54,7 @@ class UserLogin(BaseModel):
 
 class UserResponse(BaseModel):
     id: int
+    tenant_id: int
     email: str
     username: str
     full_name: Optional[str]
@@ -96,6 +108,8 @@ class VehiculoCreate(BaseModel):
     modelo: str
     anio: int
     color: str
+    tipo: Optional[str] = None  # motocicleta | automovil | camioneta | camion
+    peso_kg: Optional[int] = None
 
     @field_validator("placa")
     @classmethod
@@ -121,7 +135,35 @@ class VehiculoResponse(BaseModel):
     modelo: str
     anio: int
     color: str
+    tipo: Optional[str]
+    peso_kg: Optional[int]
     activo: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ── Contacto de Emergencia ────────────────────────────────
+class ContactoEmergenciaCreate(BaseModel):
+    nombre: str
+    telefono: str
+    relacion: str
+
+    @field_validator("telefono")
+    @classmethod
+    def tel_valido(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) < 7:
+            raise ValueError("El teléfono debe tener al menos 7 dígitos")
+        return v
+
+
+class ContactoEmergenciaResponse(BaseModel):
+    id: int
+    usuario_id: int
+    nombre: str
+    telefono: str
+    relacion: str
     created_at: datetime
 
     model_config = {"from_attributes": True}

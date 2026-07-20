@@ -467,3 +467,16 @@ async def obtener_desempeno_tecnicos(taller_id: int, periodo: str | None, db: As
         item["posicion_ranking"] = index + 1
         
     return results
+
+
+async def obtener_heatmap_tenant(tenant_id: int, db: AsyncSession) -> list[dict]:
+    from app.emergencias.models import Incidente
+    result = await db.execute(
+        select(Incidente.latitud, Incidente.longitud)
+        .where(
+            Incidente.tenant_id == tenant_id,
+            Incidente.latitud.isnot(None),
+            Incidente.longitud.isnot(None),
+        )
+    )
+    return [{"lat": row[0], "lng": row[1]} for row in result.all()]

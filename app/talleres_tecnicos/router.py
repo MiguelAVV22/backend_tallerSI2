@@ -29,6 +29,17 @@ async def actualizar_disponibilidad(
     return await service.actualizar_disponibilidad(current_user.id, data.disponible, db)
 
 
+# ── Actualizar ubicación e información del taller ──────────
+@router.patch("/mi-taller/ubicacion", response_model=schemas.TallerInfoResponse)
+async def actualizar_ubicacion_taller(
+    data: schemas.TallerUpdatePayload,
+    current_user: User = Depends(require_role("taller")),
+    db: AsyncSession = Depends(get_db),
+):
+    return await service.actualizar_taller_info(current_user.id, data, db)
+
+
+
 # ── CU25 · Listar técnicos ─────────────────────────────────
 @router.get("/tecnicos", response_model=list[schemas.TecnicoResponse])
 async def listar_tecnicos(
@@ -171,7 +182,9 @@ async def asignar_tecnico(
     db: AsyncSession = Depends(get_db),
 ):
     taller = await service.get_taller_by_user(current_user.id, db)
-    asignacion = await service.asignar_tecnico_a_solicitud(asignacion_id, taller.id, data.tecnico_id, db)
+    asignacion = await service.asignar_tecnico_a_solicitud(
+        asignacion_id, taller.id, data.tecnico_id, db, data.unidad_auxilio_id
+    )
     return schemas.AsignacionResponse.model_validate(asignacion)
 
 
@@ -184,3 +197,35 @@ async def confirmar_llegada(
 ):
     asignacion = await service.confirmar_llegada_tecnico(asignacion_id, current_user.id, db)
     return schemas.AsignacionResponse.model_validate(asignacion)
+
+
+# ── Gestión de Unidades de Auxilio ────────────────────────
+@router.get("/unidades", response_model=list[schemas.UnidadAuxilioResponse])
+async def listar_unidades(
+    current_user: User = Depends(require_role("taller")),
+    db: AsyncSession = Depends(get_db),
+):
+    taller = await service.get_taller_by_user(current_user.id, db)
+    unidades = await service.listar_unidades(taller.id, db)
+    return [schemas.UnidadAuxilioResponse.model_validate(u) for u in unidades]
+
+
+@router.post("/unidades", response_model=schemas.UnidadAuxilioResponse, status_code=status.HTTP_201_CREATED)
+async def registrar_unidad(
+    data: schemas.UnidadAuxilioCreate,
+    current_user: User = Depends(require_role("taller")),
+    db: AsyncSession = Depends(get_db),
+):
+    taller = await service.get_taller_by_user(current_user.id, db)
+    unidad = await service.registrar_unidad(taller.id, data, db)
+    return schemas.UnidadAuxilioResponse.model_validate(unidad)
+
+
+@router.delete("/unidades/{unidad_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def desactivar_unidad(
+    unidad_id: int,
+    current_user: User = Depends(require_role("taller")),
+    db: AsyncSession = Depends(get_db),
+):
+    taller = await service.get_taller_by_user(current_user.id, db)
+    await service.desactivar_unidad(unidad_id, taller.id, db)

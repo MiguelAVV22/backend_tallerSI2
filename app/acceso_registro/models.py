@@ -4,10 +4,21 @@ from app.db.base import Base
 from datetime import datetime, timezone
 
 
+class Tenant(Base):
+    __tablename__ = "tenants"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String(200), nullable=False)
+    slug = Column(String(100), unique=True, index=True, nullable=False)
+    activo = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
 class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, default=1, server_default="1")
     email = Column(String(255), unique=True, index=True, nullable=False)
     username = Column(String(100), unique=True, index=True, nullable=False)
     full_name = Column(String(255), nullable=True)
@@ -22,13 +33,28 @@ class Vehiculo(Base):
     __tablename__ = "vehiculos"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, default=1, server_default="1")
     usuario_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     placa = Column(String(20), unique=True, index=True, nullable=False)
     marca = Column(String(100), nullable=False)
     modelo = Column(String(100), nullable=False)
     anio = Column(Integer, nullable=False)
     color = Column(String(50), nullable=False)
+    tipo = Column(String(50), nullable=True)  # motocicleta | automovil | camioneta | camion
+    peso_kg = Column(Integer, nullable=True)
     activo = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ContactoEmergencia(Base):
+    __tablename__ = "contactos_emergencia"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, default=1, server_default="1")
+    usuario_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    nombre = Column(String(150), nullable=False)
+    telefono = Column(String(20), nullable=False)
+    relacion = Column(String(50), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -36,6 +62,7 @@ class Taller(Base):
     __tablename__ = "talleres"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, default=1, server_default="1")
     usuario_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)
     nombre = Column(String(200), nullable=False)
     direccion = Column(String(500), nullable=False)
