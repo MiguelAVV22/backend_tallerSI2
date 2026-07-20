@@ -90,9 +90,17 @@ async def lifespan(app: FastAPI):
             "ALTER TABLE asignaciones ADD COLUMN IF NOT EXISTS unidad_auxilio_id INTEGER REFERENCES unidades_auxilio(id)"
         ))
 
-    # Pool warm-up
+    # Pool warm-up y auto-población de datos si la BD está vacía
     async with AsyncSessionLocal() as session:
-        await session.execute(text("SELECT 1"))
+        result = await session.execute(text("SELECT 1 FROM users LIMIT 1"))
+        if not result.scalar_one_or_none():
+            print("[Seed] Base de datos vacía detectada. Poblando usuarios y datos iniciales de prueba...")
+            try:
+                from seed import seed
+                await seed()
+                print("[Seed] Base de datos poblada exitosamente.")
+            except Exception as e:
+                print(f"[Seed] Error cargando datos iniciales: {e}")
 
     # Inicializar Firebase Admin SDK
     import firebase_admin
