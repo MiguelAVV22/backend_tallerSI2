@@ -207,7 +207,7 @@ app.include_router(pagos_router,        prefix="/api/pagos",        tags=["Cotiz
 app.include_router(comunicacion_router, prefix="/api/comunicacion", tags=["Comunicación"])
 app.include_router(reportes_router,     prefix="/api/reportes",     tags=["Reportes"])
 app.include_router(ia_router,           prefix="/api/ia",           tags=["Inteligencia Artificial"])
-app.include_router(seguimiento_router,  prefix="/ws",               tags=["Seguimiento en Tiempo Real"])
+app.include_router(seguimiento_router,  prefix="/api/seguimiento",  tags=["Seguimiento en Tiempo Real"])
 app.include_router(metricas_router,     prefix="/api/metricas",     tags=["Métricas y Dashboard"])
 
 

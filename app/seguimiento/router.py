@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-@router.websocket("/seguimiento/{incidente_id}")
+@router.websocket("/ws/{incidente_id}")
 async def websocket_endpoint(websocket: WebSocket, incidente_id: int):
     await manager.connect(incidente_id, websocket)
     logger.info(f"WebSocket conectado: Incidente #{incidente_id}")
