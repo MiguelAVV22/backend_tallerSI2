@@ -85,7 +85,6 @@ async def disponibles(
         select(Incidente)
         .options(undefer(Incidente.tipo_incidente))
         .where(
-            Incidente.tenant_id == current_user.tenant_id,
             Incidente.estado == "pendiente",
             or_(
                 and_(Incidente.latitud.isnot(None), Incidente.longitud.isnot(None)),
@@ -120,9 +119,13 @@ async def disponibles(
             taller.disponible, i.latitud, i.longitud, i.prioridad,
         )
 
-        # Filtrar incidentes que superan el radio operativo máximo (50 km) cuando el taller tiene ubicación GPS
-        if taller.latitud is not None and taller.longitud is not None and distancia is not None:
+        # Si hay ubicación GPS, filtramos estrictamente por distancia (< 50 km) independientemente del tenant
+        if taller.latitud is not None and taller.longitud is not None and i.latitud is not None and i.longitud is not None and distancia is not None:
             if distancia > RADIO_KM:
+                continue
+        else:
+            # Si no hay coordenadas GPS para calcular la distancia, solo mostramos si son del mismo tenant
+            if i.tenant_id != current_user.tenant_id:
                 continue
 
         tipo_problema = i.tipo_incidente or ""
