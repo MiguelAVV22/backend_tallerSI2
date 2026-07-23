@@ -33,6 +33,7 @@ class SolicitudDisponibleResponse(BaseModel):
     estado: str
     fotos_urls: list[str]
     tiene_audio: bool
+    audio_url: Optional[str] = None
     created_at: str
     es_sos: bool = False
     distancia_km: Optional[float] = None
@@ -105,12 +106,12 @@ async def disponibles(
         .where(Evidencia.incidente_id.in_(inc_ids))
     )
     fotos_map: dict[int, list[str]] = {}
-    audio_map: dict[int, bool] = {}
+    audio_map: dict[int, str] = {}
     for row in evid_res.all():
         if row[2] == "foto" and row[1]:
             fotos_map.setdefault(row[0], []).append(row[1])
-        elif row[2] == "audio":
-            audio_map[row[0]] = True
+        elif row[2] == "audio" and row[1]:
+            audio_map[row[0]] = row[1]
 
     resultado: list[SolicitudDisponibleResponse] = []
     for i in incidentes:
@@ -141,7 +142,8 @@ async def disponibles(
             prioridad=i.prioridad,
             estado=i.estado,
             fotos_urls=fotos_map.get(i.id, []),
-            tiene_audio=audio_map.get(i.id, False),
+            tiene_audio=i.id in audio_map,
+            audio_url=audio_map.get(i.id, None),
             created_at=i.created_at.isoformat() if i.created_at else "",
             es_sos=(
                 i.prioridad == "alta"
